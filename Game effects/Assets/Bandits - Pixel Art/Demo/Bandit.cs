@@ -1,97 +1,59 @@
 ﻿using UnityEngine;
-using System.Collections;
 
-public class Bandit : MonoBehaviour {
+namespace Bandits___Pixel_Art.Demo
+{
+    public class Bandit : MonoBehaviour
+    {
+        [SerializeField] private float _speed;
+        [SerializeField] private float _jumpForce;
 
-    [SerializeField] float      m_speed = 4.0f;
-    [SerializeField] float      m_jumpForce = 7.5f;
+        private static readonly int AnimState = Animator.StringToHash("AnimState");
+        private static readonly int Grounded = Animator.StringToHash("Grounded");
+        private static readonly int AirSpeed = Animator.StringToHash("AirSpeed");
 
-    private Animator            m_animator;
-    private Rigidbody2D         m_body2d;
-    private Sensor_Bandit       m_groundSensor;
-    private bool                m_grounded = false;
-    private bool                m_combatIdle = false;
-    private bool                m_isDead = false;
+        private bool _grounded;
+        private Animator _animator;
+        private Rigidbody2D _body2d;
 
-    // Use this for initialization
-    void Start () {
-        m_animator = GetComponent<Animator>();
-        m_body2d = GetComponent<Rigidbody2D>();
-        m_groundSensor = transform.Find("GroundSensor").GetComponent<Sensor_Bandit>();
-    }
-	
-	// Update is called once per frame
-	void Update () {
-        //Check if character just landed on the ground
-        if (!m_grounded && m_groundSensor.State()) {
-            m_grounded = true;
-            m_animator.SetBool("Grounded", m_grounded);
+        private void Awake()
+        {
+            _animator = GetComponent<Animator>();
+            _body2d = GetComponent<Rigidbody2D>();
         }
 
-        //Check if character just started falling
-        if(m_grounded && !m_groundSensor.State()) {
-            m_grounded = false;
-            m_animator.SetBool("Grounded", m_grounded);
+        private void Update()
+        {
+            Jump();
+
+            float inputX = Input.GetAxisRaw("Horizontal");
+            if (inputX > 0)
+                transform.rotation = Quaternion.Euler(0, 180, 0);
+            else if (inputX < 0)
+                transform.rotation = Quaternion.identity;
+
+            _body2d.velocity = new Vector2(inputX * _speed, _body2d.velocity.y);
+            _animator.SetInteger(AnimState, Mathf.Abs(inputX) > Mathf.Epsilon ? 2 : 0);
         }
 
-        // -- Handle input and movement --
-        float inputX = Input.GetAxis("Horizontal");
-
-        // Swap direction of sprite depending on walk direction
-        if (inputX > 0)
-            transform.localScale = new Vector3(-1.0f, 1.0f, 1.0f);
-        else if (inputX < 0)
-            transform.localScale = new Vector3(1.0f, 1.0f, 1.0f);
-
-        // Move
-        m_body2d.velocity = new Vector2(inputX * m_speed, m_body2d.velocity.y);
-
-        //Set AirSpeed in animator
-        m_animator.SetFloat("AirSpeed", m_body2d.velocity.y);
-
-        // -- Handle Animations --
-        //Death
-        if (Input.GetKeyDown("e")) {
-            if(!m_isDead)
-                m_animator.SetTrigger("Death");
-            else
-                m_animator.SetTrigger("Recover");
-
-            m_isDead = !m_isDead;
-        }
+        private void Jump()
+        {
+            _animator.SetFloat(AirSpeed, _body2d.velocity.y);
             
-        //Hurt
-        else if (Input.GetKeyDown("q"))
-            m_animator.SetTrigger("Hurt");
-
-        //Attack
-        else if(Input.GetMouseButtonDown(0)) {
-            m_animator.SetTrigger("Attack");
+            if (Input.GetKeyDown(KeyCode.Space) && _grounded)
+            {
+                _grounded = false;
+                _animator.SetBool(Grounded, _grounded);
+                _body2d.AddForce(Vector2.up * _jumpForce, ForceMode2D.Impulse);
+            }
         }
 
-        //Change between idle and combat idle
-        else if (Input.GetKeyDown("f"))
-            m_combatIdle = !m_combatIdle;
-
-        //Jump
-        else if (Input.GetKeyDown("space") && m_grounded) {
-            m_animator.SetTrigger("Jump");
-            m_grounded = false;
-            m_animator.SetBool("Grounded", m_grounded);
-            m_body2d.velocity = new Vector2(m_body2d.velocity.x, m_jumpForce);
-            m_groundSensor.Disable(0.2f);
+        private void OnCollisionEnter2D(Collision2D other)
+        {
+            if (other.transform.TryGetComponent<Ground>(out _))
+            {
+                _grounded = true;
+                _animator.SetBool(Grounded, _grounded);
+            }
         }
-
-        //Run
-        else if (Mathf.Abs(inputX) > Mathf.Epsilon)
-            m_animator.SetInteger("AnimState", 2);
-
-        //Combat Idle
-        else if (m_combatIdle)
-            m_animator.SetInteger("AnimState", 1);
-
-        //Idle
-        else
-            m_animator.SetInteger("AnimState", 0);
     }
 }
